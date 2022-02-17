@@ -15,6 +15,13 @@ public struct Wheel {
 }
 
 public class SimpleCarController : MonoBehaviour {
+    public TrailRenderer[] TireMarks;
+
+    [Range(-1.5f, 1.5f)]
+    public float ZCenter;
+
+    [SerializeField]
+    private float _skidAt = 0.35f;
     [SerializeField]
     private float _maxAcceleration = 20f;
     [SerializeField]
@@ -25,13 +32,13 @@ public class SimpleCarController : MonoBehaviour {
     private Vector3 _centerOfMass;
     [SerializeField]
     private List<Wheel> _wheels;
-
     private float _inputX, _inputY;
-
     private Rigidbody _rb;
+    private bool _isSkid = false;
 
     private void Start() {
         _rb = GetComponent<Rigidbody>();
+        _centerOfMass.z = ZCenter;
         _rb.centerOfMass = _centerOfMass;
     }
     private void Update() {
@@ -41,15 +48,24 @@ public class SimpleCarController : MonoBehaviour {
     private void FixedUpdate() {
         Move();
         Turn();
+        Skidding();
     }
 
     private void Move() {
+        bool isBraking = false;
+        if (Input.GetKey(KeyCode.Space)) {
+            isBraking = true;
+        }
+
         foreach (var wheel in _wheels) {
-            //if (wheel.axel == Axel.REAR) {
-                Debug.Log(_inputY);
+            if (!isBraking) {
+                wheel.collider.brakeTorque = 0;
                 wheel.collider.motorTorque = _inputY * _maxAcceleration * 125 * Time.deltaTime;
-            //}
-                
+            } else if (isBraking){ //handbrake
+                if (wheel.axel == Axel.REAR) {
+                    wheel.collider.brakeTorque = 4000;
+                }
+            }            
         }
     }
 
@@ -75,5 +91,37 @@ public class SimpleCarController : MonoBehaviour {
             wheel.model.transform.position = pos;
             wheel.model.transform.rotation = rot;
         }
+    }
+
+    private void Skidding() {
+        foreach (var wheel in _wheels) {
+            WheelHit hit;
+            wheel.collider.GetGroundHit(out hit);
+
+            if (hit.sidewaysSlip > _skidAt || hit.forwardSlip > _skidAt) {
+                StartEmitter();
+                Debug.Log("skrrrt! " + Time.time);
+            } else {
+                StopEmitter();
+            }
+        }
+    }
+
+    private void StartEmitter() {
+        if (_isSkid) return;
+        foreach (TrailRenderer T in TireMarks) {
+            T.emitting = true;
+        }
+
+        _isSkid = true; 
+    }
+
+    private void StopEmitter() {
+        if (!_isSkid) return;
+        foreach (TrailRenderer T in TireMarks) {
+            T.emitting = false;
+        }
+
+        _isSkid = false;
     }
 }
